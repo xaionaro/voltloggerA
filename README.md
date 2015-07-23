@@ -1,3 +1,5 @@
+The main repository: git clone [https://devel.mephi.ru/dyokunev/voltloggerA](https://devel.mephi.ru/dyokunev/voltloggerA)
+
 This is a software for:
 ![an example plot](https://devel.mephi.ru/dyokunev/voltloggerA/raw/master/doc/photo.jpg)
 ![an example plot](https://devel.mephi.ru/dyokunev/voltloggerA/raw/master/doc/example_graph.png)
