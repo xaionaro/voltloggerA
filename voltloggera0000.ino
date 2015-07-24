@@ -43,17 +43,16 @@ unsigned long ticks()
 unsigned char WriteBuffer[UDP_BUFSIZE];
 int WriteBufferFilled;
 
-void pushValue() {
-	if (WriteBufferFilled >= UDP_BUFSIZE-3) {
+void pushValue()
+{
+	if (WriteBufferFilled >= UDP_BUFSIZE - 3) {
 		return;
 	}
 
 	uint16_t value;
 	uint16_t timestamp;
-
 	value     = analogRead(5);
 	timestamp = micros();
-
 	WriteBuffer[WriteBufferFilled++] = timestamp;
 	WriteBuffer[WriteBufferFilled++] = timestamp >> 8;
 	WriteBuffer[WriteBufferFilled++] = value;
@@ -62,9 +61,7 @@ void pushValue() {
 
 void setup()
 {
-        SPI.setClockDivider(SPI_CLOCK_DIV2);
-
-
+	SPI.setClockDivider(SPI_CLOCK_DIV2);
 	Serial.begin(9600);
 #if FASTADC
 	sbi(ADCSRA, ADPS2);
@@ -73,7 +70,6 @@ void setup()
 #endif
 	pinMode(4,	OUTPUT);
 	digitalWrite(4,	HIGH);		// disable SD card if one in the slot
-
 	pinMode(SS,	OUTPUT);
 	pinMode(nRST,	OUTPUT);
 	pinMode(nPWDN,	OUTPUT);
@@ -101,10 +97,9 @@ void setup()
 	Serial.print(":");
 	Serial.println(port_remote);
 	udp.begin(port_local);
-
 	WriteBufferFilled = 0;
-	Timer1.initialize(100);
-	Timer1.attachInterrupt(pushValue); 
+	Timer1.initialize(50);
+	Timer1.attachInterrupt(pushValue);
 }
 
 #define BYTES_PER_PACKET (UDP_BUFSIZE << 2)
@@ -113,12 +108,17 @@ void loop()
 {
 	udp.beginPacket(ip_remote, port_remote);
 	int i = 0;
-
 //	while (WriteBufferFilled < UDP_BUFSIZE-3)
 //		pushValue();
-
+	int oldWriteBufferFilled = WriteBufferFilled;
 	udp.write(WriteBuffer, WriteBufferFilled);
-	WriteBufferFilled=0;
+	int newWriteBufferFilled = WriteBufferFilled;
+	WriteBufferFilled = 0;
+
+	if (oldWriteBufferFilled != newWriteBufferFilled) {
+		udp.write(&WriteBuffer[oldWriteBufferFilled], newWriteBufferFilled - oldWriteBufferFilled);
+	}
+
 	udp.endPacket();
 }
 
