@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <EthernetV2_0.h>
+#include <TimerOne.h>
 
 #define FASTADC 1
 
@@ -36,10 +37,34 @@ unsigned long ticks()
 	return timer0_overflow_count;
 }
 
-unsigned char WriteBuffer[UDP_TX_PACKET_MAX_SIZE];
+//#define UDP_BUFSIZE UDP_TX_PACKET_MAX_SIZE
+#define UDP_BUFSIZE 800
+
+unsigned char WriteBuffer[UDP_BUFSIZE];
+int WriteBufferFilled;
+
+void pushValue() {
+	if (WriteBufferFilled >= UDP_BUFSIZE-3) {
+		return;
+	}
+
+	uint16_t value;
+	uint16_t timestamp;
+
+	value     = analogRead(5);
+	timestamp = micros();
+
+	WriteBuffer[WriteBufferFilled++] = timestamp;
+	WriteBuffer[WriteBufferFilled++] = timestamp >> 8;
+	WriteBuffer[WriteBufferFilled++] = value;
+	WriteBuffer[WriteBufferFilled++] = value >> 8;
+}
 
 void setup()
 {
+        SPI.setClockDivider(SPI_CLOCK_DIV2);
+
+
 	Serial.begin(9600);
 #if FASTADC
 	sbi(ADCSRA, ADPS2);
@@ -76,36 +101,41 @@ void setup()
 	Serial.print(":");
 	Serial.println(port_remote);
 	udp.begin(port_local);
+
+	WriteBufferFilled = 0;
+	Timer1.initialize(100);
+	Timer1.attachInterrupt(pushValue); 
 }
 
-#define VALUES_PER_PACKET 2
-
-#define BYTES_PER_PACKET (VALUES_PER_PACKET << 2)
+#define BYTES_PER_PACKET (UDP_BUFSIZE << 2)
 
 void loop()
 {
 	udp.beginPacket(ip_remote, port_remote);
 	int i = 0;
 
-	while (i < BYTES_PER_PACKET) {
-		uint16_t value;
-		uint16_t timestamp;
-		value     = analogRead(5);
-		timestamp = micros();
-		//timestamp = ticks();
-//		value   >>= 2;
-		//udp.write(WriteBuffer);
-		//udp.write(timestamp >> 3);
-		//udp.write(timestamp >> 4);
-		//udp.write(value >> 8);
-		WriteBuffer[i++] = timestamp;
-		WriteBuffer[i++] = timestamp >> 8;
-		WriteBuffer[i++] = value;
-		WriteBuffer[i++] = value >> 8;
-	}
+//	while (WriteBufferFilled < UDP_BUFSIZE-3)
+//		pushValue();
 
-	udp.write(WriteBuffer, BYTES_PER_PACKET);
-//	udp.write(value);
+	udp.write(WriteBuffer, WriteBufferFilled);
+	WriteBufferFilled=0;
 	udp.endPacket();
 }
 
+/*** Interrupt routine ADC ready *** /
+ISR(ADC_vect) {
+  int aval = ADCL;    // store lower byte ADC
+  aval += ADCH << 8;  // store higher bytes ADC
+  if (sendStatus == 0) {
+    if (startDelay < 10000) { // do nothing the first x samples
+      startDelay++;
+    }
+    else {
+      valueBin[aval] += 1; // increase value bin
+      if (valueBin[aval] == 255) { // stop if a bin is full
+        sendStatus = 1;
+      }
+    }
+  }
+}
+*/
